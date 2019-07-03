@@ -1,0 +1,146 @@
+/*
+This is in the step event of objControl, the object that runs the whole game. The wave structure built so that all I have to do to create a new level is add to a switch statement in "find_lvl_stats()". It uses the int "lvl" and sets the enemy lists, the difficulty, the number of enemies.
+
+This script also works in "Hoarde Mode" which bypasses "find_lvl_stats()", and scales the difficulty based on the player's current performance.
+*/
+
+
+// Inherit the parent event
+event_inherited();
+switch(room)//Make sure we're in the game room
+{
+	case rmGameRoom:
+		if (lvl != 100)//Level 100 is the HUB world
+		{
+			switch(lvl_D_N)//Are we in the daytime or the nighttime?
+			{
+				case 0://Day
+				switch(lvl_state)
+				{
+					case 0://Waiting to make spawners
+						if (alarm[1] < 0)
+						{
+							lvl_goblins_killed = 0;
+							lvl_spawn_enemy = 0;
+							if (!hoard_mode)//Two modes of gameplay: Hoardemode and story mode
+							{
+								find_lvl_stats();//Find the stats for the specific story level
+								event_perform(ev_alarm,4);
+							}
+							else
+							{
+								if (lvl_goblin_number < 50)	lvl_goblin_number += (choose(3,4,5)*(lvl_day+1));//Set the number of enemies  in the level based on the current day
+								event_perform(ev_alarm,4);
+							}
+							alarm[1] = lvl_pause_timer;//Creates a moments pause before lvl_state changes
+							show_debug_message(">>>>>>	objControl.lvl_state == 0	-	Waiting to create spawners");
+						}
+					break;
+					case 1://Creating spawners
+						if (instance_number(objSpawner) < lvl_spawner_n)
+						{
+							var list = ds_list_create();
+							with(objBlockSpawner)//Block spawner objects spawn at the outskirts of the level. They are used as waypoints to spawn the actual spawners
+							{
+								ds_list_add(list,id);//Add the blockSpawers to a list
+							}
+							ds_list_shuffle(list);//Shuffle the list
+							for(var i = 0; i < lvl_spawner_n; i++)
+							{
+								var sp = list[|i];
+								show_debug_message("Creating spawner at " + string(sp.x div objControl.block_w) + "," + string(sp.y div objControl.block_h) + "     -    id:" + string(sp));
+								if (i > 0)
+								{
+									if (point_distance(sp.x,sp.y,objSpawner.x,objSpawner.y) > 1500) //Spawn at least 1500 pixels away from another spawner
+									{
+										instance_create_depth(sp.x,sp.y,0,objSpawner);//Create the spawner
+									}
+								}
+								else
+								{
+									instance_create_depth(sp.x,sp.y,0,objSpawner);
+								}
+								show_debug_message(">>>>>>	objControl.lvl_state == 1	-	Creating Spawner!");
+							}
+							ds_list_clear(list);//Clear the previous list from memory
+						}
+						event_user(0);
+						lvl_state ++;
+					break;
+					case 2://Main game loop
+						if (lvl_goblins_killed >= lvl_goblin_number)//If the win conditions for the wave are met
+						{
+							with(objSpawner)
+							{
+								active = false;//Prevent further spawning
+							}
+						}
+						else
+						{
+							with(objSpawner)
+							{
+								active = true;
+							}	
+						}
+						if (lvl_goblins_killed >= lvl_goblin_number) && (!instance_exists(objEnemy))//If the player has killed enough enemies and there are none left
+						{
+							show_debug_message(">>>>>>	objControl.lvl_state == 3	-	Pause Between rounds!!");
+							lvl_state ++;
+						}
+					break;
+					case 3://Pause between rounds
+						if (lvl_round == lvl_rounds_in_day[lvl_day])//If we're on the final day
+						{
+							lvl_state ++;//Go straight to the next lvl_state
+						}
+						else//give xp and create HUD object
+						{
+							lvl_state ++;
+							give_xp(100);
+							instance_create_depth(x,y,0,objNextWaveIn);
+						}
+					break;
+					case 4://What to do next? Is the day finished OR another round?
+						//if we're not on the final round of the day
+						if (lvl_day < lvl_day_max)
+						{
+							if (lvl_round < lvl_rounds_in_day[lvl_day])
+							{
+								lvl_round ++;
+								lvl_state = 0;
+								give_xp(10);
+								show_debug_message(">>>>>>	objControl.lvl_state == 0	-	Loaded stats for new round, continuing");
+							}
+							else
+							{
+								show_debug_message(">>>>>>	objControl.lvl_state == 5	-	End of Day!");
+								instance_create_depth(0,0,0,objDayComplete);
+								lvl_state ++;
+							}
+						}
+						else
+						{
+							give_xp(combo_high);
+							lvl_state = 6;
+						}
+					break;
+					case 5://End of the day!
+						//End of day. Player goes to campfire
+			
+					break;
+					case 6://End of Level!
+					with(objNextWaveIn)instance_destroy();
+						if (!instance_exists(objLevelComplete))
+						{
+							instance_create_depth(0,0,0,objLevelComplete);
+						}
+					break;
+				}
+				break;
+				case 1://Night
+				//Happens elsewhere
+				break;
+			}
+		}
+	break;
+}
