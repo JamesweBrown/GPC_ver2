@@ -1,0 +1,21 @@
+//Find difficulty
+var player_hp = objPlayer.hp/100;
+var house_hp = objHouse.hp/1000;
+var _round = lvl_round*0.1;
+
+var overall = (mean(player_hp,house_hp,_round)*((lvl_day+1)*0.5))*1;// + (lvl*1.5);
+show_debug_message("overall difficulty = " + string(overall));
+
+ds_list_delete(difficulty_list,1)
+for (var i = 0; i < 4; i ++)
+{
+	ds_list_replace(difficulty_list,i,difficulty_list[|i+1]);
+}
+
+ds_list_add(difficulty_list,overall);
+
+difficulty = round(mean(difficulty_list[|1],difficulty_list[|2],difficulty_list[|3],difficulty_list[|4],difficulty_list[|5])*100);
+
+/*
+The difficulty is calculated every 10 seconds from the player hp and the house hp. It's then added to a list with a length of 5. The mean of the that list becomes the current difficulty, and the appropriate number and types of enemies spawn based on how high or low that number is.
+*/
